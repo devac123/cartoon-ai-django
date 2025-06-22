@@ -1,0 +1,233 @@
+{% extends 'image_processor/base.html' %}
+
+{% block title %}Cartoon Result - Your Image is Ready!{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 text-center mb-4">
+        {% if image_processing.status == 'completed' %}
+            <h1 class="text-white"><i class="fas fa-check-circle text-success me-2"></i>Your Cartoon is Ready!</h1>
+            <p class="lead text-white">Your image has been successfully transformed into cartoon style.</p>
+        {% elif image_processing.status == 'processing' %}
+            <h1 class="text-white"><i class="fas fa-spinner fa-spin text-warning me-2"></i>Processing Your Image...</h1>
+            <p class="lead text-white">Please wait while our AI transforms your photo.</p>
+        {% elif image_processing.status == 'failed' %}
+            <h1 class="text-white"><i class="fas fa-exclamation-triangle text-danger me-2"></i>Processing Failed</h1>
+            <p class="lead text-white">Sorry, we couldn't process your image. Please try again.</p>
+        {% else %}
+            <h1 class="text-white"><i class="fas fa-clock text-info me-2"></i>Processing Queued</h1>
+            <p class="lead text-white">Your image is in the processing queue.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% if image_processing.status == 'completed' %}
+<!-- Success: Show before and after images -->
+<div class="row mb-5">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-secondary text-white text-center">
+                <h5 class="mb-0"><i class="fas fa-image me-2"></i>Original Image</h5>
+            </div>
+            <div class="card-body text-center">
+                <img src="{{ image_processing.original_image.url }}" 
+                     alt="Original Image" 
+                     class="image-preview img-fluid">
+                <p class="mt-2 mb-0 text-muted">{{ image_processing.original_filename }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white text-center">
+                <h5 class="mb-0"><i class="fas fa-magic me-2"></i>Cartoon Result</h5>
+            </div>
+            <div class="card-body text-center">
+                <img src="{{ image_processing.processed_image.url }}" 
+                     alt="Cartoon Image" 
+                     class="image-preview img-fluid">
+                <p class="mt-2 mb-0 text-muted">{{ image_processing.processed_filename }}</p>
+                {% if image_processing.processing_time %}
+                    <small class="text-success d-block">
+                        <i class="fas fa-clock me-1"></i>
+                        Processed in {{ image_processing.processing_time|floatformat:2 }} seconds
+                    </small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Download and Actions -->
+<div class="row mb-5">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center">
+                <h4 class="mb-4">Download Your Cartoon Image</h4>
+                <div class="d-flex justify-content-center gap-3 flex-wrap">
+                    <a href="{% url 'image_processor:download' image_processing.pk %}" 
+                       class="btn btn-success btn-lg">
+                        <i class="fas fa-download me-2"></i>Download Image
+                    </a>
+                    <a href="{% url 'image_processor:home' %}" 
+                       class="btn btn-outline-primary btn-lg">
+                        <i class="fas fa-plus me-2"></i>Convert Another Image
+                    </a>
+                    <button class="btn btn-outline-secondary btn-lg" onclick="shareImage()">
+                        <i class="fas fa-share-alt me-2"></i>Share
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- HD Version UPI CTA -->
+<div class="row">
+    <div class="col-12">
+        <div class="upi-section">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h3><i class="fas fa-star me-2"></i>Want HD Version?</h3>
+                    <p class="mb-2">Get a high-definition version with enhanced quality and resolution!</p>
+                    <ul class="list-unstyled mb-3">
+                        <li><i class="fas fa-check text-warning me-2"></i>4x Higher Resolution</li>
+                        <li><i class="fas fa-check text-warning me-2"></i>Enhanced Details</li>
+                        <li><i class="fas fa-check text-warning me-2"></i>Premium Processing</li>
+                    </ul>
+                    <div class="alert alert-info mb-0">
+                        <strong>Pay ₹49 via UPI:</strong> <code>{{ upi_id }}</code><br>
+                        Contact <strong>{{ telegram_handle }}</strong> on Telegram with payment screenshot
+                    </div>
+                </div>
+                <div class="col-md-4 text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-medal text-warning" style="font-size: 4rem;"></i>
+                    </div>
+                    <a href="upi://pay?pa={{ upi_id }}&am=49&cu=INR&tn=HD%20Cartoon%20Image" 
+                       class="btn btn-warning btn-lg">
+                        <i class="fas fa-mobile-alt me-2"></i>Pay ₹49 via UPI
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% elif image_processing.status == 'processing' %}
+<!-- Processing Status -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="processing-spinner spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Processing...</span>
+                </div>
+                <h4>AI is transforming your image...</h4>
+                <p class="text-muted">This usually takes a few seconds. Please don't close this page.</p>
+                <div class="progress mb-3" style="height: 10px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 100%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% elif image_processing.status == 'failed' %}
+<!-- Error State -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-danger">
+            <div class="card-body text-center">
+                <i class="fas fa-exclamation-triangle text-danger" style="font-size: 4rem; margin-bottom: 1rem;"></i>
+                <h4 class="text-danger">Processing Failed</h4>
+                {% if image_processing.error_message %}
+                    <p class="text-muted">{{ image_processing.error_message }}</p>
+                {% else %}
+                    <p class="text-muted">We encountered an error while processing your image. Please try again with a different image.</p>
+                {% endif %}
+                <div class="mt-4">
+                    <a href="{% url 'image_processor:home' %}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-redo me-2"></i>Try Again
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- Pending State -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-clock text-info" style="font-size: 4rem; margin-bottom: 1rem;"></i>
+                <h4>Your image is in queue...</h4>
+                <p class="text-muted">Processing will begin shortly. Please wait...</p>
+                <div class="mt-4">
+                    <button class="btn btn-primary" onclick="location.reload()">
+                        <i class="fas fa-refresh me-2"></i>Refresh Status
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Auto-refresh for processing status
+{% if image_processing.status == 'processing' or image_processing.status == 'pending' %}
+function checkStatus() {
+    $.ajax({
+        url: '{% url "image_processor:check_status" image_processing.pk %}',
+        method: 'GET',
+        success: function(data) {
+            if (data.status === 'completed') {
+                location.reload();
+            } else if (data.status === 'failed') {
+                location.reload();
+            }
+        },
+        error: function() {
+            console.log('Status check failed');
+        }
+    });
+}
+
+// Check status every 3 seconds
+setInterval(checkStatus, 3000);
+{% endif %}
+
+// Share functionality
+function shareImage() {
+    if (navigator.share) {
+        navigator.share({
+            title: 'Check out my cartoon image!',
+            text: 'I transformed my photo into a cartoon using AI!',
+            url: window.location.href
+        });
+    } else {
+        // Fallback: copy URL to clipboard
+        navigator.clipboard.writeText(window.location.href).then(function() {
+            alert('Link copied to clipboard!');
+        });
+    }
+}
+
+// Image comparison slider (optional enhancement)
+function initImageComparison() {
+    // This could be enhanced with a before/after slider library
+    console.log('Image comparison initialized');
+}
+
+$(document).ready(function() {
+    initImageComparison();
+});
+</script>
+{% endblock %}

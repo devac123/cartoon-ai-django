@@ -1,0 +1,169 @@
+{% extends 'image_processor/base.html' %}
+
+{% block title %}Gallery - Recent Cartoon Transformations{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 text-center">
+        <h1 class="text-white mb-3">
+            <i class="fas fa-images me-2"></i>Gallery
+        </h1>
+        <p class="lead text-white mb-4">
+            Check out recent cartoon transformations created by our AI
+        </p>
+        <a href="{% url 'image_processor:home' %}" class="btn btn-primary btn-lg">
+            <i class="fas fa-plus me-2"></i>Create Your Own
+        </a>
+    </div>
+</div>
+
+{% if recent_images %}
+<div class="row">
+    {% for image in recent_images %}
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header text-center">
+                <small class="text-muted">
+                    <i class="fas fa-clock me-1"></i>
+                    {{ image.created_at|timesince }} ago
+                </small>
+            </div>
+            <div class="card-body p-0">
+                <div class="row g-0">
+                    <div class="col-6">
+                        <div class="text-center p-2">
+                            <small class="text-muted d-block mb-2">Original</small>
+                            <img src="{{ image.original_image.url }}" 
+                                 alt="Original" 
+                                 class="img-fluid rounded"
+                                 style="max-height: 150px; object-fit: cover; width: 100%;">
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-center p-2">
+                            <small class="text-primary d-block mb-2">
+                                <i class="fas fa-magic me-1"></i>Cartoon
+                            </small>
+                            <img src="{{ image.processed_image.url }}" 
+                                 alt="Cartoon" 
+                                 class="img-fluid rounded"
+                                 style="max-height: 150px; object-fit: cover; width: 100%;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer text-center">
+                {% if image.processing_time %}
+                    <small class="text-success">
+                        <i class="fas fa-stopwatch me-1"></i>
+                        {{ image.processing_time|floatformat:2 }}s
+                    </small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Load More Button (if needed) -->
+<div class="row mt-4">
+    <div class="col-12 text-center">
+        <p class="text-white-50">
+            <i class="fas fa-info-circle me-2"></i>
+            Showing recent transformations. Create your own cartoon image above!
+        </p>
+    </div>
+</div>
+
+{% else %}
+<!-- Empty State -->
+<div class="row">
+    <div class="col-12">
+        <div class="card text-center">
+            <div class="card-body py-5">
+                <i class="fas fa-images text-muted" style="font-size: 5rem; margin-bottom: 2rem;"></i>
+                <h3 class="text-muted mb-3">No Images Yet</h3>
+                <p class="text-muted mb-4">
+                    Be the first to create a cartoon image! Upload your photo and watch the magic happen.
+                </p>
+                <a href="{% url 'image_processor:home' %}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-upload me-2"></i>Upload First Image
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Features Showcase -->
+<div class="row mt-5">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h4 class="text-center mb-4">Why Choose Our Cartoon AI?</h4>
+                <div class="row text-center">
+                    <div class="col-md-3 mb-3">
+                        <i class="fas fa-rocket text-primary" style="font-size: 2rem;"></i>
+                        <h6 class="mt-2">Fast Processing</h6>
+                        <small class="text-muted">Results in seconds</small>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <i class="fas fa-shield-check text-success" style="font-size: 2rem;"></i>
+                        <h6 class="mt-2">Secure & Private</h6>
+                        <small class="text-muted">Your data is protected</small>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <i class="fas fa-mobile-alt text-info" style="font-size: 2rem;"></i>
+                        <h6 class="mt-2">Mobile Friendly</h6>
+                        <small class="text-muted">Works on all devices</small>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <i class="fas fa-star text-warning" style="font-size: 2rem;"></i>
+                        <h6 class="mt-2">HD Quality</h6>
+                        <small class="text-muted">Premium options available</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+$(document).ready(function() {
+    // Add hover effects to gallery images
+    $('.card img').hover(
+        function() {
+            $(this).css('transform', 'scale(1.05)');
+            $(this).css('transition', 'transform 0.3s ease');
+        },
+        function() {
+            $(this).css('transform', 'scale(1)');
+        }
+    );
+    
+    // Lazy loading for images (optional enhancement)
+    function initLazyLoading() {
+        if ('IntersectionObserver' in window) {
+            const imageObserver = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const img = entry.target;
+                        img.src = img.dataset.src;
+                        img.classList.remove('lazy');
+                        imageObserver.unobserve(img);
+                    }
+                });
+            });
+            
+            document.querySelectorAll('img[data-src]').forEach(img => {
+                imageObserver.observe(img);
+            });
+        }
+    }
+    
+    initLazyLoading();
+});
+</script>
+{% endblock %}
