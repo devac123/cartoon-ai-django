@@ -346,7 +346,14 @@ def neural_cartoon_effect(img):
 
 def process_image_to_cartoon(image_processing_obj):
     """
-    Process an ImageProcessing object to create cartoon version
+    Process an ImageProcessing object to create cartoon version using neural style (default)
+    """
+    return process_image_with_style(image_processing_obj, 'neural')
+
+
+def process_image_with_style(image_processing_obj, style='neural'):
+    """
+    Process an ImageProcessing object to create cartoon version with specified style
     """
     try:
         # Update status to processing
@@ -359,7 +366,7 @@ def process_image_to_cartoon(image_processing_obj):
         # Create output filename
         original_name = os.path.basename(original_path)
         name, ext = os.path.splitext(original_name)
-        output_filename = f"{name}_cartoon{ext}"
+        output_filename = f"{name}_cartoon_{style}{ext}"
         
         # Create temporary output path
         temp_output_path = os.path.join(
@@ -367,12 +374,11 @@ def process_image_to_cartoon(image_processing_obj):
             f"temp_{output_filename}"
         )
         
-        # Process the image with neural cartoon effects for best results
-        # Using neural style for superior animation quality
+        # Process the image with the specified style
         success, processing_time, error_msg = advanced_cartoon_processing(
             original_path, 
             temp_output_path,
-            style='neural'
+            style=style
         )
         
         if success:

@@ -7,6 +7,7 @@ class ImageUploadForm(forms.ModelForm):
     """Form for uploading images with validation"""
     
     CARTOON_STYLES = [
+        ('neural', '🧠 Neural AI Style - Best quality with advanced processing (Recommended)'),
         ('classic', '🎨 Classic Cartoon - Bold edges and vibrant colors'),
         ('anime', '🌟 Anime Style - Smooth regions with vivid colors'),
         ('sketch', '✏️ Pencil Sketch - Artistic hand-drawn look'),
@@ -16,7 +17,7 @@ class ImageUploadForm(forms.ModelForm):
     
     cartoon_style = forms.ChoiceField(
         choices=CARTOON_STYLES,
-        initial='classic',
+        initial='neural',
         widget=forms.RadioSelect(attrs={
             'class': 'form-check-input'
         }),

@@ -32,11 +32,14 @@ def upload_image(request):
                 # Save the image processing object
                 image_processing = form.save()
                 
-                # Process the image (synchronous for now)
-                success, error_msg = process_image_to_cartoon(image_processing)
+                # Get the selected cartoon style
+                cartoon_style = form.cleaned_data.get('cartoon_style', 'neural')
+                
+                # Process the image with the selected style
+                success, error_msg = process_image_with_style(image_processing, cartoon_style)
                 
                 if success:
-                    messages.success(request, 'Image processed successfully!')
+                    messages.success(request, f'Image processed successfully with {cartoon_style} style!')
                     return redirect('image_processor:result', pk=image_processing.pk)
                 else:
                     messages.error(request, f'Processing failed: {error_msg}')
