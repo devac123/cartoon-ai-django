@@ -67,7 +67,7 @@
                 <h4 class="mb-4">Download Your Cartoon Image</h4>
                 <div class="d-flex justify-content-center gap-3 flex-wrap">
                     <a href="{% url 'image_processor:download' image_processing.pk %}" 
-                       class="btn btn-success btn-lg">
+                       class="btn btn-primary btn-lg">
                         <i class="fas fa-download me-2"></i>Download Image
                     </a>
                     <a href="{% url 'image_processor:home' %}" 
@@ -106,7 +106,7 @@
                         <i class="fas fa-medal text-warning" style="font-size: 4rem;"></i>
                     </div>
                     <a href="upi://pay?pa={{ upi_id }}&am=49&cu=INR&tn=HD%20Cartoon%20Image" 
-                       class="btn btn-warning btn-lg">
+                       class="btn btn-outline-primary btn-lg">
                         <i class="fas fa-mobile-alt me-2"></i>Pay ₹49 via UPI
                     </a>
                 </div>

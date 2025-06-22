@@ -7,30 +7,36 @@
 <div class="row align-items-center mb-5">
     <div class="col-lg-6">
         <h1 class="display-4 fw-bold text-white mb-4">
-            Transform Your Photos into <span class="text-warning">Cartoon Art</span>
+            Transform Your Photos into <span class="text-white" style="text-shadow: 2px 2px 4px rgba(255,255,255,0.3);">Cartoon Art</span>
         </h1>
-        <p class="lead text-white mb-4">
+        <p class="lead text-secondary mb-4">
             Upload your photo and watch our AI technology transform it into a stunning cartoon-style image. 
-            Support for JPG and PNG files up to 5MB.
+            Support for JPG and PNG files up to 5MB with neural-powered processing.
         </p>
-        <div class="d-flex gap-3 mb-4">
+        <div class="d-flex gap-4 mb-4 justify-content-center justify-content-lg-start">
             <div class="text-center">
-                <i class="fas fa-upload text-warning fs-2"></i>
-                <div class="text-white small mt-1">Upload</div>
+                <div class="bg-white bg-opacity-10 rounded-circle p-3 mb-2 d-inline-block">
+                    <i class="fas fa-upload text-white fs-2"></i>
+                </div>
+                <div class="text-white small fw-semibold">Upload</div>
             </div>
             <div class="align-self-center">
-                <i class="fas fa-arrow-right text-white fs-4"></i>
+                <i class="fas fa-arrow-right text-white fs-4 opacity-75"></i>
             </div>
             <div class="text-center">
-                <i class="fas fa-magic text-warning fs-2"></i>
-                <div class="text-white small mt-1">AI Process</div>
+                <div class="bg-white bg-opacity-10 rounded-circle p-3 mb-2 d-inline-block">
+                    <i class="fas fa-magic text-white fs-2"></i>
+                </div>
+                <div class="text-white small fw-semibold">AI Process</div>
             </div>
             <div class="align-self-center">
-                <i class="fas fa-arrow-right text-white fs-4"></i>
+                <i class="fas fa-arrow-right text-white fs-4 opacity-75"></i>
             </div>
             <div class="text-center">
-                <i class="fas fa-download text-warning fs-2"></i>
-                <div class="text-white small mt-1">Download</div>
+                <div class="bg-white bg-opacity-10 rounded-circle p-3 mb-2 d-inline-block">
+                    <i class="fas fa-download text-white fs-2"></i>
+                </div>
+                <div class="text-white small fw-semibold">Download</div>
             </div>
         </div>
     </div>
@@ -118,7 +124,7 @@
                     <p class="mb-0">Contact <strong>{{ telegram_handle }}</strong> on Telegram with payment screenshot</p>
                 </div>
                 <div class="col-md-4">
-                    <a href="upi://pay?pa={{ upi_id }}&am=49&cu=INR&tn=HD%20Cartoon%20Image" class="btn btn-warning btn-lg">
+                    <a href="upi://pay?pa={{ upi_id }}&am=49&cu=INR&tn=HD%20Cartoon%20Image" class="btn btn-outline-primary btn-lg">
                         <i class="fas fa-mobile-alt me-2"></i>Pay via UPI
                     </a>
                 </div>
