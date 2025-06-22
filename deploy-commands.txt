@@ -1,0 +1,20 @@
+# Quick Deployment Commands
+
+# 1. Add GitHub remote (replace with your actual repository URL)
+git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+
+# 2. Push to GitHub
+git push -u origin main
+
+# 3. Render.com Configuration
+Environment Variables for Render:
+SECRET_KEY = _eoxlb(x#-g*w(n64=x2%i2hlmbz=p9a=t4y^smj3-7qm5w@hq
+DEBUG = False
+ALLOWED_HOSTS = .onrender.com
+UPI_ID = yourupi@bank
+TELEGRAM_HANDLE = @yourTelegramHandle
+
+Build Command: ./build.sh
+Start Command: gunicorn cartoon_project.wsgi:application
+
+# Your app will be live at: https://your-app-name.onrender.com
