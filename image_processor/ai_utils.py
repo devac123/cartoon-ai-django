@@ -52,164 +52,451 @@ def advanced_cartoon_processing(image_path, output_path, style='classic'):
 
 def classic_cartoon_effect(img):
     """
-    Creates a high-quality Disney-style cartoon effect with advanced processing
+    Creates a professional Disney-style cartoon effect with advanced processing
     """
     # Store original dimensions
     height, width = img.shape[:2]
     original_size = (width, height)
     
-    # Resize for processing if too large
-    if width > 1000:
-        scale = 1000 / width
+    # Resize for processing if too large (maintain aspect ratio)
+    if max(width, height) > 1200:
+        scale = 1200 / max(width, height)
         new_width = int(width * scale)
         new_height = int(height * scale)
-        img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA)
+        img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
     
-    # Step 1: Multiple bilateral filters for ultra-smooth skin/surfaces
-    smooth = img.copy()
-    for _ in range(3):
-        smooth = cv2.bilateralFilter(smooth, 9, 200, 200)
+    # Step 1: Advanced noise reduction and surface smoothing
+    # Use Non-local Means denoising for better quality
+    smooth = cv2.fastNlMeansDenoisingColored(img, None, 8, 8, 7, 21)
     
-    # Step 2: Create detailed edge mask with multiple techniques
+    # Progressive bilateral filtering for professional smoothing
+    for d, sigma_color, sigma_space in [(7, 80, 80), (9, 120, 120), (11, 160, 160)]:
+        smooth = cv2.bilateralFilter(smooth, d, sigma_color, sigma_space)
+    
+    # Step 2: Professional edge detection with multiple scales
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     
-    # Line art edges
-    edges1 = cv2.adaptiveThreshold(cv2.medianBlur(gray, 7), 255, 
-                                   cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 7, 7)
+    # Multi-scale edge detection for better line art
+    edges_multi = np.zeros_like(gray)
     
-    # Canny edges for fine details
-    edges2 = cv2.Canny(gray, 50, 150)
+    # Fine details with adaptive threshold
+    for block_size in [7, 11, 15]:
+        edges_adaptive = cv2.adaptiveThreshold(
+            cv2.GaussianBlur(gray, (3, 3), 0), 255,
+            cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, block_size, 8
+        )
+        edges_multi = cv2.bitwise_or(edges_multi, edges_adaptive)
     
-    # Combine edge masks
-    edges = cv2.bitwise_or(edges1, edges2)
-    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, np.ones((2,2), np.uint8))
-    edges = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
+    # Strong structural edges with Canny
+    edges_canny = cv2.Canny(cv2.GaussianBlur(gray, (3, 3), 0), 40, 120)
+    edges_multi = cv2.bitwise_or(edges_multi, edges_canny)
     
-    # Step 3: Advanced color quantization with skin tone preservation
-    data = smooth.reshape((-1, 3))
+    # Morphological operations for cleaner edges
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+    edges_multi = cv2.morphologyEx(edges_multi, cv2.MORPH_CLOSE, kernel)
+    edges_multi = cv2.morphologyEx(edges_multi, cv2.MORPH_OPEN, np.ones((1,1), np.uint8))
+    
+    # Convert to 3-channel
+    edges = cv2.cvtColor(edges_multi, cv2.COLOR_GRAY2RGB)
+    
+    # Step 3: Intelligent color quantization with perceptual color space
+    # Convert to LAB for better perceptual uniformity
+    lab = cv2.cvtColor(smooth, cv2.COLOR_RGB2LAB)
+    data = lab.reshape((-1, 3))
     data = np.float32(data)
     
-    # Use more clusters for better color preservation
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 15, 1.0)
-    _, labels, centers = cv2.kmeans(data, 12, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+    # Adaptive clustering based on image complexity
+    unique_colors = len(np.unique(data.view(np.void), axis=0))
+    k = min(max(10, unique_colors // 5000), 18)  # Adaptive cluster count
+    
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 25, 1.0)
+    _, labels, centers = cv2.kmeans(data, k, None, criteria, 15, cv2.KMEANS_PP_CENTERS)
     centers = np.uint8(centers)
     
-    quantized = centers[labels.flatten()]
-    quantized = quantized.reshape(smooth.shape)
+    quantized_lab = centers[labels.flatten()]
+    quantized_lab = quantized_lab.reshape(lab.shape)
+    quantized = cv2.cvtColor(quantized_lab, cv2.COLOR_LAB2RGB)
     
-    # Step 4: Enhance colors for cartoon look
-    hsv = cv2.cvtColor(quantized, cv2.COLOR_RGB2HSV)
-    hsv[:, :, 1] = cv2.multiply(hsv[:, :, 1], 1.2)  # Boost saturation
-    hsv[:, :, 2] = cv2.add(hsv[:, :, 2], 10)        # Slight brightness boost
-    quantized = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    # Step 4: Professional color enhancement
+    # Enhance saturation and vibrancy in HSV space
+    hsv = cv2.cvtColor(quantized, cv2.COLOR_RGB2HSV).astype(np.float32)
     
-    # Step 5: Advanced edge blending
+    # Selective saturation boost (stronger for less saturated colors)
+    saturation = hsv[:, :, 1] / 255.0
+    saturation_boost = 1.0 + (1.0 - saturation) * 0.6  # Adaptive boost
+    hsv[:, :, 1] = np.clip(hsv[:, :, 1] * saturation_boost, 0, 255)
+    
+    # Brightness enhancement with gamma correction
+    hsv[:, :, 2] = np.clip(hsv[:, :, 2] * 1.15, 0, 255)
+    
+    quantized = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2RGB)
+    
+    # Step 5: Advanced edge integration with soft blending
     edges_inv = cv2.bitwise_not(edges)
-    cartoon = cv2.bitwise_and(quantized, edges_inv)
+    edges_soft = cv2.GaussianBlur(edges_inv, (3, 3), 0) / 255.0
     
-    # Step 6: Add subtle texture and depth
-    # Create highlight mask
+    # Soft edge blending
+    cartoon = quantized.astype(np.float32)
+    for i in range(3):
+        cartoon[:, :, i] = cartoon[:, :, i] * edges_soft[:, :, i]
+    cartoon = np.clip(cartoon, 0, 255).astype(np.uint8)
+    
+    # Step 6: Professional depth and lighting effects
     gray_cartoon = cv2.cvtColor(cartoon, cv2.COLOR_RGB2GRAY)
-    highlights = cv2.threshold(gray_cartoon, 200, 255, cv2.THRESH_BINARY)[1]
-    highlights = cv2.cvtColor(highlights, cv2.COLOR_GRAY2RGB)
     
-    # Brighten highlights slightly
-    cartoon = cv2.addWeighted(cartoon, 0.9, highlights, 0.1, 0)
+    # Create sophisticated shadow and highlight masks
+    shadows = cv2.threshold(gray_cartoon, 80, 255, cv2.THRESH_BINARY_INV)[1]
+    shadows = cv2.GaussianBlur(shadows, (7, 7), 0)
     
-    # Step 7: Final smoothing pass
-    cartoon = cv2.bilateralFilter(cartoon, 5, 50, 50)
+    highlights = cv2.threshold(gray_cartoon, 180, 255, cv2.THRESH_BINARY)[1]
+    highlights = cv2.GaussianBlur(highlights, (7, 7), 0)
     
-    # Resize back to original dimensions
-    if original_size[0] > 1000:
-        cartoon = cv2.resize(cartoon, original_size, interpolation=cv2.INTER_CUBIC)
+    # Apply depth effects
+    cartoon = cartoon.astype(np.float32)
+    shadow_effect = (shadows / 255.0) * 0.15
+    highlight_effect = (highlights / 255.0) * 0.2
+    
+    for i in range(3):
+        cartoon[:, :, i] = cartoon[:, :, i] * (1 - shadow_effect) + highlight_effect * 255
+    
+    cartoon = np.clip(cartoon, 0, 255).astype(np.uint8)
+    
+    # Step 7: Final professional polish
+    # Subtle sharpening for crisp details
+    kernel_sharpen = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]]) * 0.1
+    cartoon = cv2.filter2D(cartoon, -1, kernel_sharpen)
+    cartoon = np.clip(cartoon, 0, 255).astype(np.uint8)
+    
+    # Final bilateral filter for smooth finish
+    cartoon = cv2.bilateralFilter(cartoon, 5, 40, 40)
+    
+    # Resize back to original dimensions with high-quality interpolation
+    if original_size != (cartoon.shape[1], cartoon.shape[0]):
+        cartoon = cv2.resize(cartoon, original_size, interpolation=cv2.INTER_LANCZOS4)
     
     return cartoon
 
 
 def anime_cartoon_effect(img):
     """
-    Creates an anime-style cartoon effect
+    Creates a professional anime-style cartoon effect with clean cel-shading
     """
-    # Step 1: Apply strong bilateral filter for smooth regions
-    bilateral = cv2.bilateralFilter(img, 20, 50, 50)
+    height, width = img.shape[:2]
+    original_size = (width, height)
     
-    # Step 2: Create edge mask
+    # Resize for processing if needed
+    if max(width, height) > 1000:
+        scale = 1000 / max(width, height)
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
+    
+    # Step 1: Advanced denoising and super-smooth regions (anime characteristic)
+    smooth = cv2.fastNlMeansDenoisingColored(img, None, 10, 10, 7, 21)
+    
+    # Multiple bilateral filters for ultra-smooth anime regions
+    for d, sigma_color, sigma_space in [(9, 100, 100), (15, 150, 150), (20, 200, 200)]:
+        smooth = cv2.bilateralFilter(smooth, d, sigma_color, sigma_space)
+    
+    # Step 2: Professional anime-style edge detection
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    gray_blur = cv2.medianBlur(gray, 7)
-    edges = cv2.adaptiveThreshold(gray_blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, 
-                                  cv2.THRESH_BINARY, 9, 9)
-    edges = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
     
-    # Step 3: More aggressive color quantization for anime look
-    data = bilateral.reshape((-1, 3))
+    # Create clean, thick edges typical of anime
+    edges_thick = cv2.adaptiveThreshold(
+        cv2.GaussianBlur(gray, (7, 7), 0), 255,
+        cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 8
+    )
+    
+    # Add fine detail edges
+    edges_fine = cv2.Canny(cv2.GaussianBlur(gray, (3, 3), 0), 30, 80)
+    
+    # Combine and clean edges
+    edges_combined = cv2.bitwise_or(edges_thick, edges_fine)
+    
+    # Morphological operations for cleaner anime lines
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    edges_combined = cv2.morphologyEx(edges_combined, cv2.MORPH_CLOSE, kernel_close)
+    
+    # Dilate slightly for thicker anime-style lines
+    kernel_dilate = np.ones((2,2), np.uint8)
+    edges_combined = cv2.dilate(edges_combined, kernel_dilate, iterations=1)
+    
+    edges = cv2.cvtColor(edges_combined, cv2.COLOR_GRAY2RGB)
+    
+    # Step 3: Aggressive color quantization for flat anime colors
+    # Convert to LAB for better color clustering
+    lab = cv2.cvtColor(smooth, cv2.COLOR_RGB2LAB)
+    data = lab.reshape((-1, 3))
     data = np.float32(data)
     
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-    _, labels, centers = cv2.kmeans(data, 6, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+    # Use fewer clusters for typical anime flat coloring
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 1.0)
+    _, labels, centers = cv2.kmeans(data, 8, None, criteria, 15, cv2.KMEANS_PP_CENTERS)
     centers = np.uint8(centers)
     
-    quantized = centers[labels.flatten()]
-    quantized = quantized.reshape(bilateral.shape)
+    quantized_lab = centers[labels.flatten()]
+    quantized_lab = quantized_lab.reshape(lab.shape)
+    quantized = cv2.cvtColor(quantized_lab, cv2.COLOR_LAB2RGB)
     
-    # Step 4: Enhance saturation for vibrant anime colors
-    hsv = cv2.cvtColor(quantized, cv2.COLOR_RGB2HSV)
-    hsv[:, :, 1] = cv2.multiply(hsv[:, :, 1], 1.4)  # Increase saturation
-    quantized = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    # Step 4: Anime-style color enhancement
+    hsv = cv2.cvtColor(quantized, cv2.COLOR_RGB2HSV).astype(np.float32)
     
-    # Step 5: Combine with edges
-    cartoon = cv2.bitwise_and(quantized, edges)
+    # Strong saturation boost for vibrant anime colors
+    hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.6, 0, 255)
+    
+    # Brightness adjustment for anime look
+    hsv[:, :, 2] = np.clip(hsv[:, :, 2] * 1.2, 0, 255)
+    
+    quantized = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2RGB)
+    
+    # Step 5: Create cel-shading effect (anime characteristic)
+    gray_quant = cv2.cvtColor(quantized, cv2.COLOR_RGB2GRAY)
+    
+    # Create multiple threshold levels for cel-shading
+    levels = [60, 120, 180]
+    cel_shaded = quantized.copy().astype(np.float32)
+    
+    for level in levels:
+        mask = (gray_quant > level).astype(np.float32)
+        for i in range(3):
+            cel_shaded[:, :, i] = cel_shaded[:, :, i] * (0.9 + 0.1 * mask)
+    
+    cel_shaded = np.clip(cel_shaded, 0, 255).astype(np.uint8)
+    
+    # Step 6: Combine with edges using soft blending
+    edges_inv = cv2.bitwise_not(edges)
+    edges_soft = cv2.GaussianBlur(edges_inv, (2, 2), 0) / 255.0
+    
+    cartoon = cel_shaded.astype(np.float32)
+    for i in range(3):
+        cartoon[:, :, i] = cartoon[:, :, i] * edges_soft[:, :, i]
+    cartoon = np.clip(cartoon, 0, 255).astype(np.uint8)
+    
+    # Step 7: Final anime polish
+    # Slight blur to soften harsh transitions
+    cartoon = cv2.GaussianBlur(cartoon, (1, 1), 0)
+    
+    # Resize back to original dimensions
+    if original_size != (cartoon.shape[1], cartoon.shape[0]):
+        cartoon = cv2.resize(cartoon, original_size, interpolation=cv2.INTER_LANCZOS4)
     
     return cartoon
 
 
 def sketch_effect(img):
     """
-    Creates a pencil sketch effect
+    Creates a professional pencil sketch effect with artistic shading
     """
-    # Convert to grayscale
+    height, width = img.shape[:2]
+    original_size = (width, height)
+    
+    # Resize for processing if needed
+    if max(width, height) > 1000:
+        scale = 1000 / max(width, height)
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
+    
+    # Step 1: Advanced grayscale conversion with weighted channels
+    # Use luminosity method for better contrast
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     
-    # Create inverted image
-    inverted = 255 - gray
+    # Apply subtle denoising to clean up the sketch
+    gray = cv2.fastNlMeansDenoising(gray, None, 10, 7, 21)
     
-    # Apply Gaussian blur
-    blurred = cv2.GaussianBlur(inverted, (25, 25), 0)
+    # Step 2: Create multiple sketch layers for depth
+    sketches = []
     
-    # Create sketch by dividing
-    def dodge(x, y):
-        return cv2.divide(x, 255 - y, scale=256)
+    # Fine detail sketch
+    inverted_fine = 255 - gray
+    blurred_fine = cv2.GaussianBlur(inverted_fine, (21, 21), 0)
+    sketch_fine = cv2.divide(gray, 255 - blurred_fine, scale=256)
+    sketches.append(sketch_fine)
     
-    sketch = dodge(gray, blurred)
+    # Medium detail sketch
+    blurred_medium = cv2.GaussianBlur(inverted_fine, (45, 45), 0)
+    sketch_medium = cv2.divide(gray, 255 - blurred_medium, scale=256)
+    sketches.append(sketch_medium)
     
-    # Convert back to 3-channel
-    sketch_colored = cv2.cvtColor(sketch, cv2.COLOR_GRAY2RGB)
+    # Coarse shading sketch
+    blurred_coarse = cv2.GaussianBlur(inverted_fine, (81, 81), 0)
+    sketch_coarse = cv2.divide(gray, 255 - blurred_coarse, scale=256)
+    sketches.append(sketch_coarse)
+    
+    # Step 3: Combine sketches with different weights
+    final_sketch = np.zeros_like(gray, dtype=np.float32)
+    weights = [0.5, 0.3, 0.2]  # Fine, medium, coarse
+    
+    for sketch, weight in zip(sketches, weights):
+        final_sketch += sketch.astype(np.float32) * weight
+    
+    final_sketch = np.clip(final_sketch, 0, 255).astype(np.uint8)
+    
+    # Step 4: Add artistic texture and enhance contrast
+    # Apply adaptive histogram equalization for better contrast
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    final_sketch = clahe.apply(final_sketch)
+    
+    # Add subtle paper texture effect
+    rows, cols = final_sketch.shape
+    noise = np.random.normal(0, 8, (rows, cols))
+    final_sketch = final_sketch.astype(np.float32) + noise
+    final_sketch = np.clip(final_sketch, 0, 255).astype(np.uint8)
+    
+    # Step 5: Enhance line definition with edge enhancement
+    # Create edge mask to preserve important lines
+    edges = cv2.Canny(gray, 50, 150)
+    edges_dilated = cv2.dilate(edges, np.ones((2, 2), np.uint8), iterations=1)
+    
+    # Darken edges in the sketch
+    edge_mask = edges_dilated.astype(np.float32) / 255.0
+    final_sketch = final_sketch.astype(np.float32)
+    final_sketch = final_sketch * (1 - edge_mask * 0.3)  # Darken edges
+    final_sketch = np.clip(final_sketch, 0, 255).astype(np.uint8)
+    
+    # Step 6: Add subtle color tinting for warmth
+    sketch_colored = cv2.cvtColor(final_sketch, cv2.COLOR_GRAY2RGB)
+    
+    # Add warm sepia-like tint
+    sketch_colored = sketch_colored.astype(np.float32)
+    sketch_colored[:, :, 0] = np.clip(sketch_colored[:, :, 0] * 1.05, 0, 255)  # Slight red
+    sketch_colored[:, :, 1] = np.clip(sketch_colored[:, :, 1] * 1.02, 0, 255)  # Slight green
+    sketch_colored[:, :, 2] = np.clip(sketch_colored[:, :, 2] * 0.95, 0, 255)  # Reduce blue
+    sketch_colored = sketch_colored.astype(np.uint8)
+    
+    # Resize back to original dimensions
+    if original_size != (sketch_colored.shape[1], sketch_colored.shape[0]):
+        sketch_colored = cv2.resize(sketch_colored, original_size, interpolation=cv2.INTER_LANCZOS4)
     
     return sketch_colored
 
 
 def watercolor_effect(img):
     """
-    Creates a watercolor painting effect
+    Creates a professional watercolor painting effect with artistic flow and transparency
     """
-    # Apply bilateral filter for smooth areas
-    bilateral = cv2.bilateralFilter(img, 10, 40, 40)
+    height, width = img.shape[:2]
+    original_size = (width, height)
     
-    # Apply median filter to create watercolor-like texture
-    watercolor = cv2.medianBlur(bilateral, 19)
+    # Resize for processing if needed
+    if max(width, height) > 1000:
+        scale = 1000 / max(width, height)
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
     
-    # Create soft edges
+    # Step 1: Create watercolor base with multiple layers
+    # Heavy denoising for clean watercolor regions
+    smooth = cv2.fastNlMeansDenoisingColored(img, None, 15, 15, 7, 21)
+    
+    # Multiple bilateral filters for ultra-smooth watercolor regions
+    watercolor_base = smooth.copy()
+    for d, sigma_color, sigma_space in [(12, 100, 100), (20, 200, 200), (25, 300, 300)]:
+        watercolor_base = cv2.bilateralFilter(watercolor_base, d, sigma_color, sigma_space)
+    
+    # Step 2: Create watercolor flow effects
+    # Apply directional blur to simulate paint flow
+    kernel_horizontal = np.ones((1, 15), np.float32) / 15
+    kernel_vertical = np.ones((15, 1), np.float32) / 15
+    kernel_diagonal1 = np.eye(15, dtype=np.float32) / 15
+    kernel_diagonal2 = np.flip(np.eye(15, dtype=np.float32), axis=1) / 15
+    
+    # Apply different directional flows
+    flow_h = cv2.filter2D(watercolor_base, -1, kernel_horizontal)
+    flow_v = cv2.filter2D(watercolor_base, -1, kernel_vertical)
+    flow_d1 = cv2.filter2D(watercolor_base, -1, kernel_diagonal1)
+    flow_d2 = cv2.filter2D(watercolor_base, -1, kernel_diagonal2)
+    
+    # Combine flows with weights
+    watercolor_flow = (flow_h * 0.3 + flow_v * 0.3 + flow_d1 * 0.2 + flow_d2 * 0.2).astype(np.uint8)
+    
+    # Step 3: Create artistic color bleeding effect
+    # Convert to LAB for better color manipulation
+    lab = cv2.cvtColor(watercolor_flow, cv2.COLOR_RGB2LAB)
+    
+    # Apply morphological operations to create color bleeding
+    kernel_bleed = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    lab[:, :, 1] = cv2.morphologyEx(lab[:, :, 1], cv2.MORPH_CLOSE, kernel_bleed)  # A channel
+    lab[:, :, 2] = cv2.morphologyEx(lab[:, :, 2], cv2.MORPH_CLOSE, kernel_bleed)  # B channel
+    
+    watercolor_bled = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+    
+    # Step 4: Create watercolor transparency effects
+    # Simulate transparent watercolor layers
+    transparency_mask = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    transparency_mask = cv2.GaussianBlur(transparency_mask, (15, 15), 0)
+    transparency_mask = transparency_mask.astype(np.float32) / 255.0
+    
+    # Create multiple transparency layers
+    layer1 = watercolor_bled.astype(np.float32)
+    layer2 = cv2.GaussianBlur(watercolor_bled, (21, 21), 0).astype(np.float32)
+    layer3 = cv2.medianBlur(watercolor_bled, 25).astype(np.float32)
+    
+    # Blend layers with transparency
+    watercolor_transparent = layer1 * 0.6 + layer2 * 0.25 + layer3 * 0.15
+    watercolor_transparent = np.clip(watercolor_transparent, 0, 255).astype(np.uint8)
+    
+    # Step 5: Enhance watercolor colors
+    hsv = cv2.cvtColor(watercolor_transparent, cv2.COLOR_RGB2HSV).astype(np.float32)
+    
+    # Boost saturation for vibrant watercolor effect
+    hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.4, 0, 255)
+    
+    # Adjust brightness for watercolor luminosity
+    hsv[:, :, 2] = np.clip(hsv[:, :, 2] * 1.1, 0, 255)
+    
+    watercolor_enhanced = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2RGB)
+    
+    # Step 6: Add subtle paper texture
+    # Create paper-like texture
+    rows, cols, _ = watercolor_enhanced.shape
+    paper_texture = np.random.normal(0, 5, (rows, cols))
+    paper_texture = cv2.GaussianBlur(paper_texture, (3, 3), 0)
+    
+    # Apply texture to all channels
+    watercolor_textured = watercolor_enhanced.astype(np.float32)
+    for i in range(3):
+        watercolor_textured[:, :, i] += paper_texture * 0.3
+    
+    watercolor_textured = np.clip(watercolor_textured, 0, 255).astype(np.uint8)
+    
+    # Step 7: Create soft watercolor edges
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    edges = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, 
-                                  cv2.THRESH_BINARY, 7, 7)
-    edges = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
     
-    # Blend edges softly
-    edges = cv2.GaussianBlur(edges, (3, 3), 0)
+    # Very soft edge detection for watercolor
+    edges_soft = cv2.Canny(cv2.GaussianBlur(gray, (7, 7), 0), 20, 60)
     
-    # Combine
-    result = cv2.bitwise_and(watercolor, edges)
+    # Heavily blur edges for watercolor softness
+    edges_soft = cv2.GaussianBlur(edges_soft, (9, 9), 0)
+    edges_soft = cv2.morphologyEx(edges_soft, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
     
-    return result
+    # Create soft edge mask
+    edge_mask = edges_soft.astype(np.float32) / 255.0
+    edge_mask_3d = np.stack([edge_mask] * 3, axis=2)
+    
+    # Apply soft edge darkening
+    watercolor_final = watercolor_textured.astype(np.float32)
+    watercolor_final = watercolor_final * (1 - edge_mask_3d * 0.2)
+    watercolor_final = np.clip(watercolor_final, 0, 255).astype(np.uint8)
+    
+    # Step 8: Final watercolor polish
+    # Add slight color variation for artistic effect
+    watercolor_final = watercolor_final.astype(np.float32)
+    
+    # Subtle color temperature variation
+    watercolor_final[:, :, 0] = np.clip(watercolor_final[:, :, 0] * 1.03, 0, 255)  # Warm reds
+    watercolor_final[:, :, 2] = np.clip(watercolor_final[:, :, 2] * 0.97, 0, 255)  # Cool blues
+    
+    watercolor_final = watercolor_final.astype(np.uint8)
+    
+    # Final soft blur for watercolor finish
+    watercolor_final = cv2.GaussianBlur(watercolor_final, (2, 2), 0)
+    
+    # Resize back to original dimensions
+    if original_size != (watercolor_final.shape[1], watercolor_final.shape[0]):
+        watercolor_final = cv2.resize(watercolor_final, original_size, interpolation=cv2.INTER_LANCZOS4)
+    
+    return watercolor_final
 
 
 def oil_painting_effect(img):
@@ -233,113 +520,215 @@ def oil_painting_effect(img):
 
 def neural_cartoon_effect(img):
     """
-    Creates a more advanced cartoon effect using neural-style techniques
+    Creates a state-of-the-art cartoon effect using advanced computer vision techniques
+    mimicking neural style transfer results
     """
     height, width = img.shape[:2]
     original_size = (width, height)
     
-    # Resize for processing
-    if width > 800:
-        scale = 800 / width
+    # Resize for processing with better quality
+    if max(width, height) > 1400:
+        scale = 1400 / max(width, height)
         new_width = int(width * scale)
         new_height = int(height * scale)
-        img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA)
+        img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
     
-    # Step 1: Advanced denoising and smoothing
-    smooth = cv2.fastNlMeansDenoisingColored(img, None, 10, 10, 7, 21)
+    # Step 1: Ultra-advanced denoising and surface preparation
+    # Apply Non-local Means denoising with optimized parameters
+    smooth = cv2.fastNlMeansDenoisingColored(img, None, 12, 12, 7, 21)
     
-    # Multiple bilateral filters with different parameters
-    for d, sigma_color, sigma_space in [(5, 50, 50), (7, 100, 100), (9, 150, 150)]:
+    # Progressive multi-scale bilateral filtering for professional smoothing
+    smoothing_stages = [
+        (5, 60, 60),   # Fine details preservation
+        (9, 120, 120), # Medium smoothing
+        (13, 180, 180), # Strong smoothing
+        (17, 240, 240)  # Ultra-smooth cartoon regions
+    ]
+    
+    for d, sigma_color, sigma_space in smoothing_stages:
         smooth = cv2.bilateralFilter(smooth, d, sigma_color, sigma_space)
     
-    # Step 2: Face-aware processing (if faces detected)
+    # Step 2: Intelligent face and skin detection for enhanced processing
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     
-    # Load face cascade (built into OpenCV)
-    try:
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+    # Skin color detection in HSV space for better skin smoothing
+    hsv = cv2.cvtColor(smooth, cv2.COLOR_RGB2HSV)
+    
+    # Define skin color range in HSV
+    lower_skin = np.array([0, 20, 70], dtype=np.uint8)
+    upper_skin = np.array([20, 255, 255], dtype=np.uint8)
+    skin_mask = cv2.inRange(hsv, lower_skin, upper_skin)
+    
+    # Morphological operations to clean skin mask
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    skin_mask = cv2.morphologyEx(skin_mask, cv2.MORPH_OPEN, kernel)
+    skin_mask = cv2.morphologyEx(skin_mask, cv2.MORPH_CLOSE, kernel)
+    skin_mask = cv2.GaussianBlur(skin_mask, (5, 5), 0)
+    
+    # Apply extra smoothing to skin regions
+    skin_regions = cv2.bitwise_and(smooth, smooth, mask=skin_mask)
+    skin_smooth = cv2.bilateralFilter(skin_regions, 21, 300, 300)
+    
+    # Blend smoothed skin back
+    skin_mask_3d = cv2.cvtColor(skin_mask, cv2.COLOR_GRAY2RGB) / 255.0
+    smooth = smooth.astype(np.float32)
+    skin_smooth = skin_smooth.astype(np.float32)
+    smooth = smooth * (1 - skin_mask_3d) + skin_smooth * skin_mask_3d
+    smooth = np.clip(smooth, 0, 255).astype(np.uint8)
+    
+    # Step 3: Professional multi-scale edge detection
+    edges_pyramid = []
+    
+    # Create Gaussian pyramid for multi-scale edge detection
+    scales = [1.0, 0.8, 0.6, 0.4]
+    
+    for scale in scales:
+        if scale != 1.0:
+            scaled_img = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        else:
+            scaled_img = gray.copy()
         
-        # Apply special processing to face regions
-        for (x, y, w, h) in faces:
-            face_region = smooth[y:y+h, x:x+w]
-            # Extra smoothing for faces
-            face_region = cv2.bilateralFilter(face_region, 15, 200, 200)
-            smooth[y:y+h, x:x+w] = face_region
-    except:
-        pass  # Continue without face detection if cascade not available
+        # Multiple edge detection methods
+        # 1. Adaptive threshold edges
+        edges_adaptive = cv2.adaptiveThreshold(
+            cv2.GaussianBlur(scaled_img, (5, 5), 0), 255,
+            cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 9, 10
+        )
+        
+        # 2. Canny edges with multiple thresholds
+        edges_canny_low = cv2.Canny(cv2.GaussianBlur(scaled_img, (3, 3), 0), 30, 90)
+        edges_canny_high = cv2.Canny(cv2.GaussianBlur(scaled_img, (3, 3), 0), 50, 150)
+        
+        # Combine edge methods
+        edges_combined = cv2.bitwise_or(edges_adaptive, edges_canny_low)
+        edges_combined = cv2.bitwise_or(edges_combined, edges_canny_high)
+        
+        # Resize back to original scale
+        if scale != 1.0:
+            edges_combined = cv2.resize(edges_combined, (gray.shape[1], gray.shape[0]), 
+                                      interpolation=cv2.INTER_NEAREST)
+        
+        edges_pyramid.append(edges_combined)
     
-    # Step 3: Advanced edge detection with multiple scales
-    edges_final = np.zeros(gray.shape, dtype=np.uint8)
-    
-    # Multi-scale edge detection
-    for ksize in [3, 5, 7]:
-        blurred = cv2.GaussianBlur(gray, (ksize, ksize), 0)
-        edges = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_MEAN_C, 
-                                      cv2.THRESH_BINARY, 7, 7)
+    # Combine multi-scale edges
+    edges_final = np.zeros_like(gray)
+    for edges in edges_pyramid:
         edges_final = cv2.bitwise_or(edges_final, edges)
     
-    # Refine edges
-    kernel = np.ones((2,2), np.uint8)
-    edges_final = cv2.morphologyEx(edges_final, cv2.MORPH_CLOSE, kernel)
-    edges_final = cv2.morphologyEx(edges_final, cv2.MORPH_OPEN, kernel)
+    # Advanced morphological operations for cleaner edges
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+    
+    edges_final = cv2.morphologyEx(edges_final, cv2.MORPH_CLOSE, kernel_close)
+    edges_final = cv2.morphologyEx(edges_final, cv2.MORPH_OPEN, kernel_open)
     
     # Convert to 3-channel
     edges_3d = cv2.cvtColor(edges_final, cv2.COLOR_GRAY2RGB)
     
-    # Step 4: Intelligent color quantization
-    data = smooth.reshape((-1, 3))
+    # Step 4: Advanced perceptual color quantization
+    # Convert to perceptually uniform LAB color space
+    lab = cv2.cvtColor(smooth, cv2.COLOR_RGB2LAB)
+    data = lab.reshape((-1, 3))
     data = np.float32(data)
     
-    # Adaptive K-means based on image complexity
+    # Intelligent adaptive clustering
     unique_colors = len(np.unique(data.view(np.void), axis=0))
-    k = min(max(8, unique_colors // 10000), 16)  # Adaptive cluster count
+    # More sophisticated cluster count calculation
+    k = min(max(12, int(np.sqrt(unique_colors / 1000))), 20)
     
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 1.0)
-    _, labels, centers = cv2.kmeans(data, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+    # Enhanced K-means with better initialization
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.5)
+    _, labels, centers = cv2.kmeans(data, k, None, criteria, 20, cv2.KMEANS_PP_CENTERS)
     centers = np.uint8(centers)
     
-    quantized = centers[labels.flatten()]
-    quantized = quantized.reshape(smooth.shape)
+    quantized_lab = centers[labels.flatten()]
+    quantized_lab = quantized_lab.reshape(lab.shape)
+    quantized = cv2.cvtColor(quantized_lab, cv2.COLOR_LAB2RGB)
     
-    # Step 5: Color enhancement with histogram equalization
-    lab = cv2.cvtColor(quantized, cv2.COLOR_RGB2LAB)
-    lab[:, :, 0] = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8)).apply(lab[:, :, 0])
-    quantized = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+    # Step 5: Professional color enhancement pipeline
+    # Convert to HSV for color manipulation
+    hsv = cv2.cvtColor(quantized, cv2.COLOR_RGB2HSV).astype(np.float32)
     
-    # Boost saturation and adjust brightness
-    hsv = cv2.cvtColor(quantized, cv2.COLOR_RGB2HSV)
-    hsv[:, :, 1] = cv2.multiply(hsv[:, :, 1], 1.3)  # Saturation boost
-    hsv[:, :, 2] = cv2.add(hsv[:, :, 2], 15)        # Brightness boost
-    quantized = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    # Advanced saturation enhancement (preserve natural skin tones)
+    saturation = hsv[:, :, 1] / 255.0
     
-    # Step 6: Advanced blending
+    # Create saturation boost map (less boost for skin-like colors)
+    hue = hsv[:, :, 0]
+    skin_hue_mask = ((hue >= 0) & (hue <= 25)) | ((hue >= 160) & (hue <= 180))
+    
+    saturation_boost = np.where(skin_hue_mask, 1.2, 1.5)  # Less boost for skin tones
+    saturation_boost *= (1.0 + (1.0 - saturation) * 0.5)   # Adaptive boost
+    
+    hsv[:, :, 1] = np.clip(hsv[:, :, 1] * saturation_boost, 0, 255)
+    
+    # Advanced brightness enhancement with gamma correction
+    value = hsv[:, :, 2] / 255.0
+    gamma = 0.8  # Gamma correction for better contrast
+    value_enhanced = np.power(value, gamma) * 255.0
+    hsv[:, :, 2] = np.clip(value_enhanced * 1.1, 0, 255)
+    
+    quantized = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2RGB)
+    
+    # Step 6: Advanced edge integration with soft blending
     edges_inv = cv2.bitwise_not(edges_3d)
-    cartoon = cv2.bitwise_and(quantized, edges_inv)
     
-    # Add depth with shadows and highlights
+    # Create soft edge mask for gradual blending
+    edges_soft = cv2.GaussianBlur(edges_inv, (3, 3), 0).astype(np.float32) / 255.0
+    
+    # Apply soft edge blending
+    cartoon = quantized.astype(np.float32)
+    for i in range(3):
+        cartoon[:, :, i] = cartoon[:, :, i] * edges_soft[:, :, i]
+    cartoon = np.clip(cartoon, 0, 255).astype(np.uint8)
+    
+    # Step 7: Professional depth and lighting simulation
     gray_cartoon = cv2.cvtColor(cartoon, cv2.COLOR_RGB2GRAY)
     
-    # Create shadow mask
-    shadows = cv2.threshold(gray_cartoon, 60, 255, cv2.THRESH_BINARY_INV)[1]
-    shadows = cv2.GaussianBlur(shadows, (5, 5), 0)
-    shadows_3d = cv2.cvtColor(shadows, cv2.COLOR_GRAY2RGB)
+    # Create sophisticated shadow and highlight masks
+    # Multiple threshold levels for better depth
+    shadow_levels = [50, 80, 110]
+    highlight_levels = [170, 200, 230]
     
-    # Create highlight mask
-    highlights = cv2.threshold(gray_cartoon, 180, 255, cv2.THRESH_BINARY)[1]
-    highlights = cv2.GaussianBlur(highlights, (5, 5), 0)
-    highlights_3d = cv2.cvtColor(highlights, cv2.COLOR_GRAY2RGB)
+    depth_effect = cartoon.astype(np.float32)
     
-    # Apply shadows and highlights
-    cartoon = cv2.addWeighted(cartoon, 0.85, shadows_3d, -0.1, 0)  # Darken shadows
-    cartoon = cv2.addWeighted(cartoon, 0.9, highlights_3d, 0.1, 0)  # Brighten highlights
+    # Apply shadow effects
+    for level in shadow_levels:
+        shadow_mask = cv2.threshold(gray_cartoon, level, 255, cv2.THRESH_BINARY_INV)[1]
+        shadow_mask = cv2.GaussianBlur(shadow_mask, (7, 7), 0).astype(np.float32) / 255.0
+        shadow_strength = (shadow_levels.index(level) + 1) * 0.05
+        
+        for i in range(3):
+            depth_effect[:, :, i] = depth_effect[:, :, i] * (1 - shadow_mask * shadow_strength)
     
-    # Final polish
-    cartoon = cv2.bilateralFilter(cartoon, 3, 30, 30)
+    # Apply highlight effects
+    for level in highlight_levels:
+        highlight_mask = cv2.threshold(gray_cartoon, level, 255, cv2.THRESH_BINARY)[1]
+        highlight_mask = cv2.GaussianBlur(highlight_mask, (7, 7), 0).astype(np.float32) / 255.0
+        highlight_strength = (highlight_levels.index(level) + 1) * 0.08
+        
+        for i in range(3):
+            depth_effect[:, :, i] = depth_effect[:, :, i] + highlight_mask * highlight_strength * 255
     
-    # Resize back to original
-    if original_size[0] > 800:
-        cartoon = cv2.resize(cartoon, original_size, interpolation=cv2.INTER_CUBIC)
+    cartoon = np.clip(depth_effect, 0, 255).astype(np.uint8)
+    
+    # Step 8: Final professional polish and sharpening
+    # Unsharp masking for crisp details
+    gaussian = cv2.GaussianBlur(cartoon, (3, 3), 0)
+    unsharp_mask = cv2.addWeighted(cartoon, 1.5, gaussian, -0.5, 0)
+    cartoon = np.clip(unsharp_mask, 0, 255).astype(np.uint8)
+    
+    # Final bilateral filter for smooth finish while preserving edges
+    cartoon = cv2.bilateralFilter(cartoon, 5, 50, 50)
+    
+    # Subtle color temperature adjustment for warmer cartoon look
+    cartoon = cartoon.astype(np.float32)
+    cartoon[:, :, 0] = np.clip(cartoon[:, :, 0] * 1.02, 0, 255)  # Slight red boost
+    cartoon[:, :, 1] = np.clip(cartoon[:, :, 1] * 1.01, 0, 255)  # Slight green boost
+    cartoon = cartoon.astype(np.uint8)
+    
+    # Resize back to original dimensions with high-quality interpolation
+    if original_size != (cartoon.shape[1], cartoon.shape[0]):
+        cartoon = cv2.resize(cartoon, original_size, interpolation=cv2.INTER_LANCZOS4)
     
     return cartoon
 

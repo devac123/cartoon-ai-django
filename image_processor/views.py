@@ -6,7 +6,7 @@ from django.conf import settings
 from django.views.generic import TemplateView
 from .models import ImageProcessing
 from .forms import ImageUploadForm
-from .ai_utils import process_image_to_cartoon, advanced_cartoon_processing
+from .ai_utils import process_image_to_cartoon, process_image_with_style, advanced_cartoon_processing
 import os
 import mimetypes
 
