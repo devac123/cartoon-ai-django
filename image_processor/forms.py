@@ -6,6 +6,23 @@ from .models import ImageProcessing
 class ImageUploadForm(forms.ModelForm):
     """Form for uploading images with validation"""
     
+    CARTOON_STYLES = [
+        ('classic', '🎨 Classic Cartoon - Bold edges and vibrant colors'),
+        ('anime', '🌟 Anime Style - Smooth regions with vivid colors'),
+        ('sketch', '✏️ Pencil Sketch - Artistic hand-drawn look'),
+        ('watercolor', '🎭 Watercolor - Soft artistic painting effect'),
+        ('oil_painting', '🖼️ Oil Painting - Rich textured artistic style'),
+    ]
+    
+    cartoon_style = forms.ChoiceField(
+        choices=CARTOON_STYLES,
+        initial='classic',
+        widget=forms.RadioSelect(attrs={
+            'class': 'form-check-input'
+        }),
+        help_text="Choose your preferred cartoon animation style"
+    )
+    
     class Meta:
         model = ImageProcessing
         fields = ['original_image']
